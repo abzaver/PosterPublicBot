@@ -14,6 +14,8 @@ Basic Echobot example, repeats messages.
 Press Ctrl-C on the command line or send a signal to the process to stop the
 bot.
 """
+import search_images_by_hamming_distance as ham_dist
+import datetime
 
 import logging
 import os
@@ -65,13 +67,23 @@ async def echo(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     user_entities = update.message.parse_entities(
         [MessageEntity.MENTION, MessageEntity.TEXT_MENTION]
     )
-    if '@PosterPublicBot' in user_entities.values():
+    if context.bot.name in user_entities.values():
         await context.bot.send_message(chat_id=update.effective_chat.id, text=update.message.text,
                                        reply_to_message_id=update.message.message_id)
     if update.message.photo:
-        await context.bot.send_message(chat_id=update.effective_chat.id, text="I see photo in this message!", reply_to_message_id=update.message.message_id)
-
-
+        #await context.bot.send_message(chat_id=update.effective_chat.id, text="I see photo in this message!", reply_to_message_id=update.message.message_id)
+        file_id = update.message.photo[-1].file_id
+        new_file = await context.bot.get_file(file_id)
+        await new_file.download_to_drive('img_to_search')
+        ham_db_conn = ham_dist.create_or_open_db(ham_dist.DATABASE_NAME)
+        search_results = ham_dist.search_by_image(ham_db_conn, 'img_to_search', 10)
+        if search_results:
+            for result in search_results:
+                await context.bot.send_message(chat_id=update.effective_chat.id, text=f"message id: {result[3]} from chat id: {result[1]}, date {datetime.datetime.fromtimestamp(result[4])}",
+                                               reply_to_message_id=update.message.message_id)
+        else:
+            await update.message.reply_text('nothing found')
+        ham_db_conn.close()
 def main() -> None:
     """Start the bot."""
     # Create the Application and pass it your bot's token.

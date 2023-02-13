@@ -66,6 +66,16 @@ def add_images(db_connection, image_paths):
 
 
 def search_by_image(db_connection, image_path, dist=20):
+    searched_image_hash = imagehash.phash(Image.open(image_path))
+    db_connection.create_function("hexhammdist", 2, hamming_distance_string)
+    cursor = db_connection.cursor()
+
+    sqlite_select_query = f'select *, hexhammdist(phash, ?) as hd from images where hd <= ? order by hd;'
+    cursor.execute(sqlite_select_query, [str(searched_image_hash), dist])
+    return cursor.fetchall()
+
+
+def search_by_image_result_text(db_connection, image_path, dist=20):
     curr_time = time.time_ns()
     searched_image_hash = imagehash.phash(Image.open(image_path))
     print(f'searched image hash: {searched_image_hash} filename {image_path}')
@@ -120,9 +130,10 @@ def parse_telegram_from_json(db_connection, filename):
 
 if __name__ == '__main__':
     db_connection = create_or_open_db(DATABASE_NAME)
-    #search_by_image(db_connection, r'./ChatExport_2023-02-10/photos/photo_3158@02-01-2023_22-05-00.jpg', 18)
-    #search_by_image(db_connection,'thorston-original.jpg', 18)
-    parse_telegram_from_json(db_connection, r'./ChatExport_2023-02-10/result.json')
+    #search_by_image_result_text(db_connection, r'./ChatExport_2023-02-10/photos/photo_3158@02-01-2023_22-05-00.jpg', 18)
+    #search_by_image_result_text(db_connection,'thorston-original.jpg', 18)
+    #search_by_image_result_text(db_connection, 'img_to_search', 18)
+    #parse_telegram_from_json(db_connection, r'../ImgSearchSQLite/ChatExport_2023-02-13/result.json')
     db_connection.close()
 
 
