@@ -1,12 +1,14 @@
 #!/usr/bin/env python
-# -*- coding: utf-8 -*-
+# pylint: disable=unused-argument, wrong-import-position
 # This program is dedicated to the public domain under the CC0 license.
 
 """
 Simple Bot to reply to Telegram messages.
+
 First, a few handler functions are defined. Then, those functions are passed to
-the Dispatcher and registered at their respective places.
+the Application and registered at their respective places.
 Then, the bot is started and runs until we press Ctrl-C on the command line.
+
 Usage:
 Basic Echobot example, repeats messages.
 Press Ctrl-C on the command line or send a signal to the process to stop the
@@ -14,62 +16,72 @@ bot.
 """
 
 import logging
-
-from telegram.ext import Updater, CommandHandler, MessageHandler, Filters
-
 import os
+
+from telegram import __version__ as TG_VER
+
+try:
+    from telegram import __version_info__
+except ImportError:
+    __version_info__ = (0, 0, 0, 0, 0)  # type: ignore[assignment]
+
+if __version_info__ < (20, 0, 0, "alpha", 1):
+    raise RuntimeError(
+        f"This example is not compatible with your current PTB version {TG_VER}. To view the "
+        f"{TG_VER} version of this example, "
+        f"visit https://docs.python-telegram-bot.org/en/v{TG_VER}/examples.html"
+    )
+from telegram import ForceReply, Update
+from telegram.ext import Application, CommandHandler, ContextTypes, MessageHandler, filters
+
+# Enable logging
+logging.basicConfig(
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s", level=logging.INFO
+)
+logger = logging.getLogger(__name__)
 
 token = os.getenv("TLG_TOKEN")
 
-# Enable logging
-logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-                    level=logging.INFO)
-
-logger = logging.getLogger(__name__)
-
-
 # Define a few command handlers. These usually take the two arguments update and
-# context. Error handlers also receive the raised TelegramError object in error.
-def start(update, context):
+# context.
+async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Send a message when the command /start is issued."""
-    update.message.reply_text('Hi!')
+    user = update.effective_user
+    await update.message.reply_html(
+        rf"Hi {user.mention_html()}!",
+        reply_markup=ForceReply(selective=True),
+    )
 
 
-def help_command(update, context):
+async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Send a message when the command /help is issued."""
-    update.message.reply_text('Help!')
+    await update.message.reply_text("Help!")
 
 
-def echo(update, context):
+async def echo(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Echo the user message."""
-    update.message.reply_text(update.message.text)
+    #await update.message.reply_text(update.message.text)
+    """Echo the user message."""
+    if update.message.photo:
+        await context.bot.send_message(chat_id=update.effective_chat.id, text="I see photo in this message!", reply_to_message_id=update.message.message_id)
+    else:
+        await context.bot.send_message(chat_id=update.effective_chat.id, text=update.message.text, reply_to_message_id=update.message.message_id)
 
-
-def main():
+def main() -> None:
     """Start the bot."""
-    # Create the Updater and pass it your bot's token.
-    # Make sure to set use_context=True to use the new context based callbacks
-    # Post version 12 this will no longer be necessary
-    updater = Updater(token, use_context=True)
-
-    # Get the dispatcher to register handlers
-    dp = updater.dispatcher
+    # Create the Application and pass it your bot's token.
+    application = Application.builder().token(token).build()
 
     # on different commands - answer in Telegram
-    dp.add_handler(CommandHandler("start", start))
-    dp.add_handler(CommandHandler("help", help_command))
+    application.add_handler(CommandHandler("start", start))
+    application.add_handler(CommandHandler("help", help_command))
 
-    # on noncommand i.e message - echo the message on Telegram
-    dp.add_handler(MessageHandler(Filters.text & ~Filters.command, echo))
+    # on non command i.e message - echo the message on Telegram
+    application.add_handler(MessageHandler(filters.TEXT | filters.PHOTO & ~filters.COMMAND, echo))
 
-    # Start the Bot
-    updater.start_polling()
-
-    # Run the bot until you press Ctrl-C or the process receives SIGINT,
-    # SIGTERM or SIGABRT. This should be used most of the time, since
-    # start_polling() is non-blocking and will stop the bot gracefully.
-    updater.idle()
+    # Run the bot until the user presses Ctrl-C
+    application.run_polling()
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

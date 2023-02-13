@@ -1,12 +1,11 @@
-certifi==2020.6.20
-cffi==1.14.1
-chardet==3.0.4
-cryptography==3.0
-decorator==4.4.2
-idna==2.10
-pycparser==2.20
-python-telegram-bot==12.8
-requests==2.24.0
-six==1.15.0
-tornado==6.0.4
-urllib3==1.25.10
+# Make sure to install those as additional_dependencies in the
+# pre-commit hooks for pylint & mypy
+# Also update the readme accordingly
+
+# When dependencies release new versions and tests succeed, we should try to expand the allowed
+# versions and only increase the lower bound if necessary
+
+# httpx has no stable release yet, so let's be cautious for now
+# HTTP/2 is more performant and stable than HTTP/1.1, specially for concurrent requests
+httpx[http2] ~= 0.23.3
+python-telegram-bot[ext] == 20.1
