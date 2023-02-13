@@ -18,7 +18,7 @@ bot.
 import logging
 import os
 
-from telegram import __version__ as TG_VER
+from telegram import __version__ as TG_VER, MessageEntity
 
 try:
     from telegram import __version_info__
@@ -62,10 +62,15 @@ async def echo(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Echo the user message."""
     #await update.message.reply_text(update.message.text)
     """Echo the user message."""
+    user_entities = update.message.parse_entities(
+        [MessageEntity.MENTION, MessageEntity.TEXT_MENTION]
+    )
+    if '@PosterPublicBot' in user_entities.values():
+        await context.bot.send_message(chat_id=update.effective_chat.id, text=update.message.text,
+                                       reply_to_message_id=update.message.message_id)
     if update.message.photo:
         await context.bot.send_message(chat_id=update.effective_chat.id, text="I see photo in this message!", reply_to_message_id=update.message.message_id)
-    else:
-        await context.bot.send_message(chat_id=update.effective_chat.id, text=update.message.text, reply_to_message_id=update.message.message_id)
+
 
 def main() -> None:
     """Start the bot."""
