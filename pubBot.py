@@ -29,10 +29,10 @@ except ImportError:
 
 if __version_info__ < (20, 0, 0, "alpha", 1):
     raise RuntimeError(
-        f"This example is not compatible with your current PTB version {TG_VER}. To view the "
         f"{TG_VER} version of this example, "
         f"visit https://docs.python-telegram-bot.org/en/v{TG_VER}/examples.html"
     )
+    f"This example is not compatible with your current PTB version {TG_VER}. To view the "
 from telegram import ForceReply, Update
 from telegram.ext import Application, CommandHandler, ContextTypes, MessageHandler, filters
 
@@ -102,6 +102,17 @@ async def process_photo(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
         ham_db_conn.close()
 
 
+async def process_gif(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """trying to process the recieved gif animation"""
+    file_id = update.message.document.file_id
+    try:
+        new_file = await context.bot.get_file(file_id)
+        await new_file.download_to_drive('./data/gif_to_search.gif')
+    except BaseException as e:
+        logger.info(e)
+        await update.message.reply_text('Слишком большой файл для меня... \N{Neutral face}')
+
+
 def main() -> None:
     """Start the bot."""
     # Create the Application and pass it your bot's token.
@@ -114,6 +125,7 @@ def main() -> None:
     # on non command i.e message - echo the message on Telegram
     application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, reply))
     application.add_handler(MessageHandler(filters.PHOTO & ~filters.COMMAND, process_photo))
+    application.add_handler(MessageHandler(filters.Document.GIF & ~filters.COMMAND, process_gif))
 
     # Run the bot until the user presses Ctrl-C
     application.run_polling()

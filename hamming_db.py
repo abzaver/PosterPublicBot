@@ -6,6 +6,14 @@ from PIL import Image
 import imagehash
 from hexhamming import hamming_distance_string
 import json
+import ffmpeg
+import logging
+# Enable logging
+logging.basicConfig(
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s", level=logging.INFO
+)
+logger = logging.getLogger(__name__)
+
 
 DATABASE_NAME = 'search_img.db'
 
@@ -149,13 +157,29 @@ def parse_telegram_from_json(db_connection, filename):
 
 
 def gif_to_img():
+    in_filename = './data/gif_to_search.gif'
+    #img = Image.open(in_filename)
+    #img.save(in_filename + ".png", 'png', optimize=True, quality=70)
+    out_filename = './data/temp%d.png'
+    #-vsync 0 temp/temp%d.png
+    try:
+        (
+            ffmpeg
+            .input(in_filename)
+            .filter('scale', 120, -1)
+            .output(out_filename, vframes=100)
+            .run()
+        )
+    except ffmpeg.Error as e:
+        logger.error(e)
 
 
-    if __name__ == '__main__':
-        gif_to_img()
-        #db_connection = create_or_open_db(DATABASE_NAME)
-        # search_by_image_result_text(db_connection, r'./ChatExport_2023-02-10/photos/photo_3158@02-01-2023_22-05-00.jpg', 18)
-        # search_by_image_result_text(db_connection,'thorston-original.jpg', 18)
-        # search_by_image_result_text(db_connection, 'img_to_search', 18)
-        #parse_telegram_from_json(db_connection, r'../ImgSearchSQLite/ChatExport_2023-02-10/result.json')
-        #db_connection.close()
+
+if __name__ == '__main__':
+    gif_to_img()
+    #db_connection = create_or_open_db(DATABASE_NAME)
+    # search_by_image_result_text(db_connection, r'./ChatExport_2023-02-10/photos/photo_3158@02-01-2023_22-05-00.jpg', 18)
+    # search_by_image_result_text(db_connection,'thorston-original.jpg', 18)
+    # search_by_image_result_text(db_connection, 'img_to_search', 18)
+    #parse_telegram_from_json(db_connection, r'../ImgSearchSQLite/ChatExport_2023-02-10/result.json')
+    #db_connection.close()
