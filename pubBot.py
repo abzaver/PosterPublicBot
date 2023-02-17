@@ -44,6 +44,7 @@ logger = logging.getLogger(__name__)
 
 token = os.getenv("TLG_TOKEN")
 
+
 # Define a few command handlers. These usually take the two arguments update and
 # context.
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -60,26 +61,24 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
     await update.message.reply_text("Help!")
 
 
-async def echo(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Echo the user message."""
-    #await update.message.reply_text(update.message.text)
-    """Echo the user message."""
-        
-    user_entities = update.message.parse_entities(
+async def reply(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """reply the user message, but only if bot mentioned"""
+    message_entities = update.message.parse_entities(
         [MessageEntity.MENTION, MessageEntity.TEXT_MENTION]
     )
-    if context.bot.name in user_entities.values():
+    if context.bot.name in message_entities.values():
         await context.bot.send_message(chat_id=update.effective_chat.id, text=update.message.text,
                                        reply_to_message_id=update.message.message_id)
     #print("message id:", update.message.forward_from_message_id, " chat_id:", update.message.forward_from_chat.id)
 
-    if update.message.photo:
+async def process_photo(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+        """trying to process the recieved photo"""
         #await context.bot.send_message(chat_id=update.effective_chat.id, text="I see photo in this message!", reply_to_message_id=update.message.message_id)
         file_id = update.message.photo[-1].file_id
         new_file = await context.bot.get_file(file_id)
-        await new_file.download_to_drive('img_to_search')
+        await new_file.download_to_drive('./data/img_to_search')
         ham_db_conn = ham_dist.create_or_open_db(ham_dist.DATABASE_NAME)
-        search_results = ham_dist.search_by_image(ham_db_conn, 'img_to_search', 10)
+        search_results = ham_dist.search_by_image(ham_db_conn, './data/img_to_search', 10)
         if search_results:
             for result in search_results:
                 if result[1] == 1242081849:  # если чат это "прогрессивные мемы"
@@ -113,7 +112,8 @@ def main() -> None:
     application.add_handler(CommandHandler("help", help_command))
 
     # on non command i.e message - echo the message on Telegram
-    application.add_handler(MessageHandler(filters.TEXT | filters.PHOTO & ~filters.COMMAND, echo))
+    application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, reply))
+    application.add_handler(MessageHandler(filters.PHOTO & ~filters.COMMAND, process_photo))
 
     # Run the bot until the user presses Ctrl-C
     application.run_polling()

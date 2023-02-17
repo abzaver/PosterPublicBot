@@ -102,11 +102,12 @@ def search_by_image(db_connection, image_path, dist=20):
 
 
 def search_by_image_result_text(db_connection, image_path, dist=20):
+    curr_time = time.time_ns()
     records = search_by_image(db_connection, image_path, dist)
     for record in records:
         # print(record)
         print(
-            f'hash in db: {record[2]} hash searched image: {searched_image_hash} humming dist: {record[6]}  msg_id: {record[3]} ')
+            f'hash in db: {record[2]} hash searched image: {imagehash.phash(Image.open(image_path))} humming dist: {record[6]}  msg_id: {record[3]} ')
     print("затраченное время (мс): ", (time.time_ns() - curr_time) / 1000000)
 
 
@@ -147,10 +148,14 @@ def parse_telegram_from_json(db_connection, filename):
             print('Но что-то пошло не так...')
 
 
-if __name__ == '__main__':
-    db_connection = create_or_open_db(DATABASE_NAME)
-    # search_by_image_result_text(db_connection, r'./ChatExport_2023-02-10/photos/photo_3158@02-01-2023_22-05-00.jpg', 18)
-    # search_by_image_result_text(db_connection,'thorston-original.jpg', 18)
-    # search_by_image_result_text(db_connection, 'img_to_search', 18)
-    parse_telegram_from_json(db_connection, r'../ImgSearchSQLite/ChatExport_2023-02-10/result.json')
-    db_connection.close()
+def gif_to_img():
+
+
+    if __name__ == '__main__':
+        gif_to_img()
+        #db_connection = create_or_open_db(DATABASE_NAME)
+        # search_by_image_result_text(db_connection, r'./ChatExport_2023-02-10/photos/photo_3158@02-01-2023_22-05-00.jpg', 18)
+        # search_by_image_result_text(db_connection,'thorston-original.jpg', 18)
+        # search_by_image_result_text(db_connection, 'img_to_search', 18)
+        #parse_telegram_from_json(db_connection, r'../ImgSearchSQLite/ChatExport_2023-02-10/result.json')
+        #db_connection.close()

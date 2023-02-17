@@ -9,3 +9,7 @@
 # HTTP/2 is more performant and stable than HTTP/1.1, specially for concurrent requests
 httpx[http2] ~= 0.23.3
 python-telegram-bot[ext] == 20.1
+
+ImageHash~=4.3.1
+Pillow~=9.4.0
+hexhamming~=2.2.3
