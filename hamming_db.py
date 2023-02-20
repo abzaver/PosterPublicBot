@@ -8,6 +8,9 @@ from hexhamming import hamming_distance_string
 import json
 import ffmpeg
 import logging
+
+from numpy import tile
+
 # Enable logging
 logging.basicConfig(
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s", level=logging.INFO
@@ -156,27 +159,30 @@ def parse_telegram_from_json(db_connection, filename):
             print('Но что-то пошло не так...')
 
 
-def gif_to_img():
-    in_filename = './data/gif_to_search.gif'
-    #img = Image.open(in_filename)
-    #img.save(in_filename + ".png", 'png', optimize=True, quality=70)
-    out_filename = './data/temp%d.png'
-    #-vsync 0 temp/temp%d.png
-    try:
-        (
-            ffmpeg
-            .input(in_filename)
-            .filter('scale', 120, -1)
-            .output(out_filename, vframes=100)
-            .run()
-        )
-    except ffmpeg.Error as e:
-        logger.error(e)
+def animation_to_img(in_filename):
+    out_filename = './data/animation-tile.png'
+    probe = ffmpeg.probe(in_filename)
+    frames = 0
+    for stream in probe['streams']:
+        if stream['codec_type'] == 'video':
+            frames = int(probe['streams'][int(stream['index'])]['nb_frames']) // 6
+            break
+
+    (
+        ffmpeg
+        .input(in_filename)
+        .filter('scale', 640, -1)
+        .filter('select', 'eq(n,{})+eq(n,{})+eq(n,{})+eq(n,{})+eq(n,{})+eq(n,{})'.format(0, frames, frames * 2, frames * 3, frames * 4, frames * 5))
+        .filter('tile', '3x2')
+        .output(out_filename, vframes=4, vsync=0)
+        .overwrite_output()
+        .run(capture_stdout=True, capture_stderr=True)
+    )
 
 
 
 if __name__ == '__main__':
-    gif_to_img()
+    animation_to_img('./data/animation_to_search')
     #db_connection = create_or_open_db(DATABASE_NAME)
     # search_by_image_result_text(db_connection, r'./ChatExport_2023-02-10/photos/photo_3158@02-01-2023_22-05-00.jpg', 18)
     # search_by_image_result_text(db_connection,'thorston-original.jpg', 18)

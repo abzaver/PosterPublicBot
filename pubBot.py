@@ -102,16 +102,18 @@ async def process_photo(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
         ham_db_conn.close()
 
 
-async def process_gif(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """trying to process the recieved gif animation"""
-    file_id = update.message.document.file_id
+async def process_animation(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """trying to process the recieved animation"""
+    file_name = './data/animation_to_search'
+    file_id = update.message.effective_attachment.file_id #.video.file_id #update.message.document.file_id
     try:
         new_file = await context.bot.get_file(file_id)
-        await new_file.download_to_drive('./data/gif_to_search.gif')
+        await new_file.download_to_drive(file_name)
     except BaseException as e:
         logger.info(e)
         await update.message.reply_text('Слишком большой файл для меня... \N{Neutral face}')
-
+    finally:
+        ham_dist.animation_to_img(file_name)
 
 def main() -> None:
     """Start the bot."""
@@ -125,7 +127,8 @@ def main() -> None:
     # on non command i.e message - echo the message on Telegram
     application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, reply))
     application.add_handler(MessageHandler(filters.PHOTO & ~filters.COMMAND, process_photo))
-    application.add_handler(MessageHandler(filters.Document.GIF & ~filters.COMMAND, process_gif))
+    application.add_handler(MessageHandler((filters.Document.GIF | filters.Document.MP4 | filters.VIDEO) & ~filters.COMMAND, process_animation))
+    #application.add_handler(MessageHandler(filters.VIDEO & ~filters.COMMAND, process_animation))
 
     # Run the bot until the user presses Ctrl-C
     application.run_polling()
