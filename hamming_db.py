@@ -19,7 +19,7 @@ logger = logging.getLogger(__name__)
 
 
 DATABASE_NAME = 'search_img.db'
-
+ANIMATION_TILE_OUT_FILENAME = './data/animation-tile.png'
 
 def create_or_open_db(db_name):
     try:
@@ -73,7 +73,7 @@ def add_chat_to_db(db_connection, tuple_chat_data):
         return True
 
 
-def add_img_to_db(db_connection, tuple_images_data):
+def add_images_by_hash(db_connection, tuple_hash_images_data):
     try:
         cursor = db_connection.cursor()
 
@@ -81,7 +81,7 @@ def add_img_to_db(db_connection, tuple_images_data):
                               (chat_id, pHash, msg_id, timestamp, file_name)
                               VALUES (?, ?, ?, ?, ?);"""
 
-        cursor.executemany(sqlite_insert_with_param, tuple_images_data)
+        cursor.executemany(sqlite_insert_with_param, tuple_hash_images_data)
         db_connection.commit()
 
         cursor.close()
@@ -93,24 +93,27 @@ def add_img_to_db(db_connection, tuple_images_data):
         return True
 
 
-def add_images(db_connection, image_paths):
+def add_images_by_path(db_connection, tuple_path_images_data):
     data_tuple_list = []
-    for image_type, image_name in image_paths.items():
-        image_hash = imagehash.phash(Image.open(image_name))
-        data_tuple_list.append(tuple((image_type, str(image_hash), './{}'.format(image_name), datetime.datetime.now())))
+    for image_tuple in tuple_path_images_data:
+        image_hash = imagehash.phash(Image.open(image_tuple[1]))
+        data_tuple_list.append(tuple((image_tuple[0], str(image_hash), image_tuple[2], image_tuple[3], '')))
 
-    return add_img_to_db(db_connection, data_tuple_list)
+    return add_images_by_hash(db_connection, data_tuple_list)
 
 
 def search_by_image(db_connection, image_path, dist=20):
     searched_image_hash = imagehash.phash(Image.open(image_path))
+    return search_by_image_hash(db_connection, searched_image_hash, dist)
+
+
+def search_by_image_hash(db_connection, image_hash, dist=20):
     db_connection.create_function("hexhammdist", 2, hamming_distance_string)
     cursor = db_connection.cursor()
 
     sqlite_select_query = f'select *, hexhammdist(phash, ?) as hd from images where hd <= ? order by hd;'
-    cursor.execute(sqlite_select_query, [str(searched_image_hash), dist])
+    cursor.execute(sqlite_select_query, [str(image_hash), dist])
     return cursor.fetchall()
-
 
 def search_by_image_result_text(db_connection, image_path, dist=20):
     curr_time = time.time_ns()
@@ -153,14 +156,13 @@ def parse_telegram_from_json(db_connection, filename):
         print('Закончили парсить, заняло (мс): ', (time.time_ns() - curr_time) / 1000000)
         print('Начали добавлять...')
         curr_time = time.time_ns()
-        if add_img_to_db(db_connection, imgs_tuple_list):
+        if add_images_by_hash(db_connection, imgs_tuple_list):
             print('Закончили добавлять, заняло (мс): ', (time.time_ns() - curr_time) / 1000000)
         else:
             print('Но что-то пошло не так...')
 
 
-def animation_to_img(in_filename):
-    out_filename = './data/animation-tile.png'
+def animation_to_hash(in_filename):
     probe = ffmpeg.probe(in_filename)
     frames = 0
     for stream in probe['streams']:
@@ -174,15 +176,15 @@ def animation_to_img(in_filename):
         .filter('scale', 640, -1)
         .filter('select', 'eq(n,{})+eq(n,{})+eq(n,{})+eq(n,{})+eq(n,{})+eq(n,{})'.format(0, frames, frames * 2, frames * 3, frames * 4, frames * 5))
         .filter('tile', '3x2')
-        .output(out_filename, vframes=4, vsync=0)
+        .output(ANIMATION_TILE_OUT_FILENAME, vframes=4, vsync=0)
         .overwrite_output()
         .run(capture_stdout=True, capture_stderr=True)
     )
-
+    return imagehash.phash(Image.open(ANIMATION_TILE_OUT_FILENAME))
 
 
 if __name__ == '__main__':
-    animation_to_img('./data/animation_to_search')
+    print(animation_to_hash('./data/animation_to_search'))
     #db_connection = create_or_open_db(DATABASE_NAME)
     # search_by_image_result_text(db_connection, r'./ChatExport_2023-02-10/photos/photo_3158@02-01-2023_22-05-00.jpg', 18)
     # search_by_image_result_text(db_connection,'thorston-original.jpg', 18)
