@@ -138,6 +138,16 @@ def parse_telegram_from_json(db_connection, filename):
             chat_name = chat_data['name']
         if 'type' in chat_data:
             chat_type = chat_data['type']
+
+        if chat_type == 'public_supergroup' or chat_type == 'private_supergroup':
+            chat_type = 'supergroup'
+            chat_id = -1000000000000 - int(chat_id)
+        elif chat_type == 'public_channel' or chat_type == 'private_channel':
+            chat_type = 'channel'
+            chat_id = -1000000000000 - int(chat_id)
+        elif chat_type == 'bot_chat' or chat_type == 'personal_chat':
+            chat_type = 'private'
+
         if chat_id:
             add_chat_to_db(db_connection, [chat_id, chat_name, chat_type])
 

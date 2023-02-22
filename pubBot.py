@@ -78,9 +78,7 @@ async def reply(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     #print("message id:", update.message.forward_from_message_id, " chat_id:", update.message.forward_from_chat.id)
 
 async def process_photo(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    if update.effective_chat.type == Chat.CHANNEL:
-        return
-    """trying to process the recieved photo"""
+    """trying to process the received photo"""
     #await context.bot.send_message(chat_id=update.effective_chat.id, text="I see photo in this message!", reply_to_message_id=update.message.message_id)
     file_id = update.effective_message.photo[-1].file_id
     new_file = await context.bot.get_file(file_id)
@@ -88,18 +86,14 @@ async def process_photo(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
     ham_db_conn = ham_dist.create_or_open_db(ham_dist.DATABASE_NAME)
     search_results = ham_dist.search_by_image(ham_db_conn, './data/img_to_search', 10)
     if search_results:
+        reply_msg = f'Чувак, это \N{accordion}! '
         for result in search_results:
             if result[1] == 1242081849:  # если чат это "прогрессивные мемы"
                 chat = await context.bot.get_chat('@progressive_memes')
-                link_to_message = f'Чувак, это \N{accordion}! Было здесь: t.me/progressive_memes/{result[3]}'
-                await context.bot.send_message(chat_id=update.effective_chat.id,
-                                           text=link_to_message,
-                                           reply_to_message_id=update.effective_message.message_id)
-                #await context.bot.forward_message(chat_id=update.effective_chat.id, from_chat_id=chat.id, message_id={result[3]})
+                reply_msg += f'Было здесь: t.me/progressive_memes/{result[3]}. '
             else:
-                await context.bot.send_message(chat_id=update.effective_chat.id,
-                                               text=f"Чувак, это \N{accordion}! Было в чате {result[1]}, примерно {datetime.datetime.fromtimestamp(result[4])}",
-                                               reply_to_message_id=update.effective_message.message_id)
+                reply_msg += f' Было в чате {result[1]}, примерно {datetime.datetime.fromtimestamp(result[4])}. '
+
                 #await context.bot.send_message(chat_id=update.effective_chat.id, text='Я видел это в других чатах, но не могу сказать точно в каком сообщении',
                 #                               reply_to_message_id=update.message.message_id)
                 #chat = await context.bot.get_chat('@progressive_memes')
@@ -109,42 +103,50 @@ async def process_photo(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
                 #                               text=f"Чувак, это \N{accordion}! message id: {result[3]} from chat id: {result[1]}, date {datetime.datetime.fromtimestamp(result[4])}",
                 #                               reply_to_message_id=update.message.message_id)
     else:
-        await update.message.reply_text('Ух ты! Что-то новенькое!')
+        reply_msg = ('Ух ты! Что-то новенькое!')
         imgs_tuple_list = [tuple((update.effective_chat.id, str('./data/img_to_search'), update.effective_message.message_id,
                                   int(update.effective_message.date.timestamp()), ''))]
         ham_dist.add_images_by_path(ham_db_conn, imgs_tuple_list)
+        ham_dist.add_chat_to_db(ham_db_conn, [update.effective_chat.id, update.effective_chat.title, update.effective_chat.type])
     ham_db_conn.close()
+    if update.effective_chat.type != Chat.CHANNEL:
+        await context.bot.send_message(chat_id=update.effective_chat.id,
+                                       text=reply_msg,
+                                       reply_to_message_id=update.effective_message.message_id)
 
 
 async def process_animation(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    if update.effective_chat.type == Chat.CHANNEL:
-        return
-    """trying to process the recieved animation"""
+    """trying to process the received animation"""
     file_name = './data/animation_to_search'
-    img_to_search = ham_dist.ANIMATION_TILE_OUT_FILENAME
-
     file_id = update.effective_message.effective_attachment.file_id
+
     try:
         new_file = await context.bot.get_file(file_id)
         await new_file.download_to_drive(file_name)
     except BaseException as e:
         logger.info(e)
-        await update.effective_message.reply_text('Слишком большой файл для меня... \N{Neutral face}')
+        if update.effective_chat.type != Chat.CHANNEL:
+            await update.effective_message.reply_text('Слишком большой файл для меня... \N{Neutral face}')
         return
 
     ham_db_conn = ham_dist.create_or_open_db(ham_dist.DATABASE_NAME)
     hash_img_to_search = ham_dist.animation_to_hash(file_name)
     search_results = ham_dist.search_by_image_hash(ham_db_conn, hash_img_to_search, 10)
     if search_results:
+        reply_msg = f"Чувак, это \N{accordion}!"
         for result in search_results:
-            await context.bot.send_message(chat_id=update.effective_chat.id, text=f"Чувак, это \N{accordion}! Было в чате {result[1]}, примерно {datetime.datetime.fromtimestamp(result[4])}",
-                                           reply_to_message_id=update.effective_message.message_id)
+            reply_msg += f" Было в чате {result[1]}, примерно {datetime.datetime.fromtimestamp(result[4])}. "
     else:
-        await update.effective_message.reply_text('Ух ты! Что-то новенькое!')
+        reply_msg = 'Ух ты! Что-то новенькое!'
         imgs_tuple_list = [tuple((update.effective_chat.id, str(hash_img_to_search), update.effective_message.message_id,
                                   int(update.effective_message.date.timestamp()), ''))]
         ham_dist.add_images_by_hash(ham_db_conn, imgs_tuple_list)
+        ham_dist.add_chat_to_db(ham_db_conn, [update.effective_chat.id, update.effective_chat.title, update.effective_chat.type])
     ham_db_conn.close()
+    if update.effective_chat.type != Chat.CHANNEL:
+        await context.bot.send_message(chat_id=update.effective_chat.id,
+                                       text=reply_msg,
+                                       reply_to_message_id=update.effective_message.message_id)
 
 
 def main() -> None:
