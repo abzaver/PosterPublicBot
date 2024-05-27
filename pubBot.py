@@ -14,15 +14,13 @@ Basic Echobot example, repeats messages.
 Press Ctrl-C on the command line or send a signal to the process to stop the
 bot.
 """
-from telegram.constants import ReactionEmoji
-
-import hamming_db as ham_dist
-import datetime
 
 import logging
 import os
 
-from telegram import __version__ as TG_VER, MessageEntity, ReactionTypeEmoji
+from telegram import __version__ as TG_VER, MessageEntity
+
+import hamming_db as ham_dist
 
 try:
     from telegram import __version_info__
@@ -75,7 +73,8 @@ async def echo(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         [MessageEntity.MENTION, MessageEntity.TEXT_MENTION]
     )
     if context.bot.name in user_entities.values():
-        await context.bot.send_message(chat_id=update.effective_chat.id, text=update.message.text,
+        msg_text = 'Hey, @' + str(update.effective_user.username) + '!'
+        await context.bot.send_message(chat_id=update.effective_chat.id, text=msg_text,
                                        reply_to_message_id=update.message.message_id)
     #print("message id:", update.message.forward_from_message_id, " chat_id:", update.message.forward_from_chat.id)
 
@@ -88,16 +87,16 @@ async def echo(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         search_results = ham_dist.search_by_image(ham_db_conn, 'img_to_search', 10)
         if search_results:
             for result in search_results:
-                if result[1] == 1242081849:  # если чат это "прогрессивные мемы"
+                if result[1] == 1242081849:  # if it's chat then it's "progressive memes"
                     chat = await context.bot.get_chat('@progressive_memes')
-                    link_to_message = f'Чувак, это \N{accordion}! Было здесь: t.me/progressive_memes/{result[3]}'
+                    link_to_message = f'Dude, this is \N{accordion}! It was there: t.me/progressive_memes/{result[3]}'
                     await context.bot.send_message(chat_id=update.effective_chat.id,
                                                    text=link_to_message,
                                                    reply_to_message_id=update.message.message_id)
                     #await context.bot.forward_message(chat_id=update.effective_chat.id, from_chat_id=chat.id, message_id={result[3]})
                 else:
                     await context.bot.send_message(chat_id=update.effective_chat.id,
-                                                   text='Я видел это в других чатах, но не могу сказать точно в каком сообщении',
+                                                   text='Dude, I was see this in another chats, but I can''t remember where...',
                                                    reply_to_message_id=update.message.message_id)
                     #chat = await context.bot.get_chat('@progressive_memes')
                     #logger.info(chat)
@@ -106,7 +105,7 @@ async def echo(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
                     #                               text=f"Чувак, это \N{accordion}! message id: {result[3]} from chat id: {result[1]}, date {datetime.datetime.fromtimestamp(result[4])}",
                     #                               reply_to_message_id=update.message.message_id)
         else:
-            await update.message.reply_text('Ух ты! Что-то новенькое!')
+            await update.message.reply_text('Wow! Something new!!!')
         ham_db_conn.close()
 
 

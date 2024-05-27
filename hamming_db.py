@@ -47,7 +47,7 @@ def create_or_open_db(db_name):
         cursor.close()
 
     except sqlite3.Error as error:
-        print("Ошибка при подключении к sqlite", error)
+        print("SQLite error when create or open DB", error)
         return False
     finally:
         return db_connection
@@ -67,7 +67,7 @@ def add_chat_to_db(db_connection, tuple_chat_data):
         cursor.close()
 
     except sqlite3.Error as error:
-        print("Ошибка при работе с SQLite", error)
+        print("SQLite when add chat to DB", error)
         return False
     finally:
         return True
@@ -87,7 +87,7 @@ def add_images_by_hash(db_connection, tuple_hash_images_data):
         cursor.close()
 
     except sqlite3.Error as error:
-        print("Ошибка при работе с SQLite", error)
+        print("SQLite when add images by hash", error)
         return False
     finally:
         return True
@@ -122,13 +122,13 @@ def search_by_image_result_text(db_connection, image_path, dist=20):
         # print(record)
         print(
             f'hash in db: {record[2]} hash searched image: {imagehash.phash(Image.open(image_path))} humming dist: {record[6]}  msg_id: {record[3]} ')
-    print("затраченное время (мс): ", (time.time_ns() - curr_time) / 1000000)
+    print("Time spent (ms): ", (time.time_ns() - curr_time) / 1000000)
 
 
 def parse_telegram_from_json(db_connection, filename):
     imgs_tuple_list = []
     curr_time = time.time_ns()
-    print('Начали парсить...')
+    print('Parsing started...')
     with open(filename, 'r', encoding='utf-8') as import_file:
         chat_data = json.load(import_file)
         json.dumps(chat_data, indent=4, sort_keys=False, ensure_ascii=False)
@@ -163,13 +163,13 @@ def parse_telegram_from_json(db_connection, filename):
             if 'date_unixtime' in message:
                 timestamp = message['date_unixtime']
             imgs_tuple_list.append(tuple((chat_id, str(image_hash), msg_id, int(timestamp), img_filename)))
-        print('Закончили парсить, заняло (мс): ', (time.time_ns() - curr_time) / 1000000)
-        print('Начали добавлять...')
+        print('Parsing finished, time spend (ms): ', (time.time_ns() - curr_time) / 1000000)
+        print('Start adding...')
         curr_time = time.time_ns()
         if add_images_by_hash(db_connection, imgs_tuple_list):
-            print('Закончили добавлять, заняло (мс): ', (time.time_ns() - curr_time) / 1000000)
+            print('Adding finished, time spent (ms): ', (time.time_ns() - curr_time) / 1000000)
         else:
-            print('Но что-то пошло не так...')
+            print('Something goes wrong...')
 
 
 def animation_to_hash(in_filename):
