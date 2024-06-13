@@ -7,5 +7,11 @@
 
 # httpx has no stable release yet, so let's be cautious for now
 # HTTP/2 is more performant and stable than HTTP/1.1, specially for concurrent requests
-httpx[http2] ~= 0.23.3
-python-telegram-bot[ext] == 20.1
+httpx[http2] ~= 0.27.0
+python-telegram-bot[ext] == 21.2
+
+pillow~=10.3.0
+hexhamming~=2.2.3
+ImageHash~=4.3.1
+ffmpeg~=1.4
+numpy~=1.26.4
