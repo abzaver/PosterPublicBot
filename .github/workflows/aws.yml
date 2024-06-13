@@ -31,7 +31,7 @@ jobs:
           if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
   
       - name: Build + Tag Image.
-        run: docker build -t ${{ env.ECR_REGISTRY }}/${{ env.ECR_REPO }}:${{ env.IMAGE_VERSION }} -f Dockerfile.app .
+        run: docker build --build-arg TLG_TOKEN=${{ secrets.TLG_TOKEN }} -t ${{ env.ECR_REGISTRY }}/${{ env.ECR_REPO }}:${{ env.IMAGE_VERSION }} -f Dockerfile.app .
       
       - name: Configure AWS Credentials
         if: github.ref == 'refs/heads/main' && github.event_name == 'push'
