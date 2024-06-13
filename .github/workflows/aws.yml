@@ -33,7 +33,6 @@ jobs:
       - name: Build + Tag Image.
         run: docker build --build-arg TLG_TOKEN=${{ secrets.TLG_TOKEN }} -t ${{ env.ECR_REGISTRY }}/${{ env.ECR_REPO }}:${{ env.IMAGE_VERSION }} -f Dockerfile .
 
-      
       - name: Configure AWS Credentials
         if: github.ref == 'refs/heads/main' && github.event_name == 'push'
         uses: aws-actions/configure-aws-credentials@v1.7.0
