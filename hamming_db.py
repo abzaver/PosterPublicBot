@@ -67,7 +67,7 @@ def add_chat_to_db(db_connection, tuple_chat_data):
         cursor.close()
 
     except sqlite3.Error as error:
-        print("SQLite when add chat to DB", error)
+        print("SQLite error when add chat to DB", error)
         return False
     finally:
         return True
@@ -87,7 +87,7 @@ def add_images_by_hash(db_connection, tuple_hash_images_data):
         cursor.close()
 
     except sqlite3.Error as error:
-        print("SQLite when add images by hash", error)
+        print("SQLite error when add images by hash", error)
         return False
     finally:
         return True
