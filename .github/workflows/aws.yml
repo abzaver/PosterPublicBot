@@ -8,7 +8,7 @@ env:
   ECR_REGISTRY: ${{ vars.AWS_ECR_REGISTRY }}
   ECR_REPO: ${{ vars.AWS_ECR_REPO }}
   IMAGE_VERSION: ${{ github.run_number }}
-  REGION: ${{ secrets.AWS_REGION }}
+  REGION: ${{ vars.AWS_REGION }}
 
 jobs:
   BuildTestPublish:
