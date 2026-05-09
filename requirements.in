@@ -1,0 +1,7 @@
+python-telegram-bot == 22.7
+
+pillow~=10.3
+hexhamming~=3.0
+ImageHash~=4.3
+ffmpeg~=1.4
+numpy ~= 1.26
