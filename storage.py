@@ -5,82 +5,70 @@ logger = logging.getLogger(__name__)
 
 DATABASE_NAME = "posterbot.db"
 
-_DDL = """
-PRAGMA journal_mode=WAL;
-PRAGMA foreign_keys=ON;
-
-CREATE TABLE IF NOT EXISTS workspaces (
-    id              INTEGER PRIMARY KEY AUTOINCREMENT,
-    owner_user_id   INTEGER NOT NULL,
-    ak_chat_id      INTEGER,
-    ok_chat_id      INTEGER,
-    status          TEXT    NOT NULL DEFAULT 'pending',
-    created_at      INTEGER NOT NULL DEFAULT (unixepoch())
-);
-
-CREATE TABLE IF NOT EXISTS workspace_config (
-    workspace_id        INTEGER NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
-    key                 TEXT    NOT NULL,
-    value               TEXT    NOT NULL,
-    PRIMARY KEY (workspace_id, key)
-);
-
-CREATE TABLE IF NOT EXISTS images (
-    id              INTEGER PRIMARY KEY AUTOINCREMENT,
-    workspace_id    INTEGER NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
-    chat_id         INTEGER NOT NULL,
-    phash           TEXT    NOT NULL,
-    msg_id          INTEGER NOT NULL,
-    timestamp       INTEGER NOT NULL DEFAULT (unixepoch()),
-    file_name       TEXT    NOT NULL DEFAULT ''
-);
-
-CREATE TABLE IF NOT EXISTS posts (
-    id              INTEGER PRIMARY KEY AUTOINCREMENT,
-    workspace_id    INTEGER NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
-    bot_msg_id      INTEGER NOT NULL,
-    chat_id         INTEGER NOT NULL,
-    sender_user_id  INTEGER,
-    media_type      TEXT    NOT NULL,
-    status          TEXT    NOT NULL DEFAULT 'pending',
-    published_msg_id INTEGER,
-    created_at      INTEGER NOT NULL DEFAULT (unixepoch())
-);
-
-CREATE TABLE IF NOT EXISTS votes (
-    workspace_id    INTEGER NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
-    post_id         INTEGER NOT NULL REFERENCES posts(id) ON DELETE CASCADE,
-    user_id         INTEGER NOT NULL,
-    reaction        TEXT    NOT NULL,
-    updated_at      INTEGER NOT NULL DEFAULT (unixepoch()),
-    PRIMARY KEY (post_id, user_id)
-);
-
-CREATE TABLE IF NOT EXISTS texts (
-    id              INTEGER PRIMARY KEY AUTOINCREMENT,
-    workspace_id    INTEGER NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
-    chat_id         INTEGER NOT NULL,
-    msg_id          INTEGER NOT NULL,
-    normalized_hash TEXT    NOT NULL,
-    timestamp       INTEGER NOT NULL DEFAULT (unixepoch())
-);
-
-CREATE INDEX IF NOT EXISTS idx_images_workspace   ON images(workspace_id);
-CREATE INDEX IF NOT EXISTS idx_images_phash       ON images(phash);
-CREATE INDEX IF NOT EXISTS idx_posts_workspace    ON posts(workspace_id);
-CREATE INDEX IF NOT EXISTS idx_votes_post         ON votes(post_id);
-CREATE INDEX IF NOT EXISTS idx_texts_workspace    ON texts(workspace_id);
-CREATE INDEX IF NOT EXISTS idx_workspaces_owner   ON workspaces(owner_user_id);
-CREATE INDEX IF NOT EXISTS idx_workspaces_ak      ON workspaces(ak_chat_id);
-CREATE INDEX IF NOT EXISTS idx_workspaces_ok      ON workspaces(ok_chat_id);
-"""
-
-_MIGRATION_DDL = """
-CREATE TABLE IF NOT EXISTS schema_migrations (
-    version     INTEGER PRIMARY KEY,
-    applied_at  INTEGER NOT NULL DEFAULT (unixepoch())
-);
-"""
+_DDL_STATEMENTS = [
+    """CREATE TABLE IF NOT EXISTS schema_migrations (
+        version     INTEGER PRIMARY KEY,
+        applied_at  INTEGER NOT NULL DEFAULT (unixepoch())
+    )""",
+    """CREATE TABLE IF NOT EXISTS workspaces (
+        id              INTEGER PRIMARY KEY AUTOINCREMENT,
+        owner_user_id   INTEGER NOT NULL,
+        ak_chat_id      INTEGER,
+        ok_chat_id      INTEGER,
+        status          TEXT    NOT NULL DEFAULT 'pending',
+        created_at      INTEGER NOT NULL DEFAULT (unixepoch())
+    )""",
+    """CREATE TABLE IF NOT EXISTS workspace_config (
+        workspace_id    INTEGER NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
+        key             TEXT    NOT NULL,
+        value           TEXT    NOT NULL,
+        PRIMARY KEY (workspace_id, key)
+    )""",
+    """CREATE TABLE IF NOT EXISTS images (
+        id              INTEGER PRIMARY KEY AUTOINCREMENT,
+        workspace_id    INTEGER NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
+        chat_id         INTEGER NOT NULL,
+        phash           TEXT    NOT NULL,
+        msg_id          INTEGER NOT NULL,
+        timestamp       INTEGER NOT NULL DEFAULT (unixepoch()),
+        file_name       TEXT    NOT NULL DEFAULT ''
+    )""",
+    """CREATE TABLE IF NOT EXISTS posts (
+        id               INTEGER PRIMARY KEY AUTOINCREMENT,
+        workspace_id     INTEGER NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
+        bot_msg_id       INTEGER NOT NULL,
+        chat_id          INTEGER NOT NULL,
+        sender_user_id   INTEGER,
+        media_type       TEXT    NOT NULL,
+        status           TEXT    NOT NULL DEFAULT 'pending',
+        published_msg_id INTEGER,
+        created_at       INTEGER NOT NULL DEFAULT (unixepoch())
+    )""",
+    """CREATE TABLE IF NOT EXISTS votes (
+        workspace_id    INTEGER NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
+        post_id         INTEGER NOT NULL REFERENCES posts(id) ON DELETE CASCADE,
+        user_id         INTEGER NOT NULL,
+        reaction        TEXT    NOT NULL,
+        updated_at      INTEGER NOT NULL DEFAULT (unixepoch()),
+        PRIMARY KEY (post_id, user_id)
+    )""",
+    """CREATE TABLE IF NOT EXISTS texts (
+        id              INTEGER PRIMARY KEY AUTOINCREMENT,
+        workspace_id    INTEGER NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
+        chat_id         INTEGER NOT NULL,
+        msg_id          INTEGER NOT NULL,
+        normalized_hash TEXT    NOT NULL,
+        timestamp       INTEGER NOT NULL DEFAULT (unixepoch())
+    )""",
+    "CREATE INDEX IF NOT EXISTS idx_images_workspace  ON images(workspace_id)",
+    "CREATE INDEX IF NOT EXISTS idx_images_phash      ON images(phash)",
+    "CREATE INDEX IF NOT EXISTS idx_posts_workspace   ON posts(workspace_id)",
+    "CREATE INDEX IF NOT EXISTS idx_votes_post        ON votes(post_id)",
+    "CREATE INDEX IF NOT EXISTS idx_texts_workspace   ON texts(workspace_id)",
+    "CREATE INDEX IF NOT EXISTS idx_workspaces_owner  ON workspaces(owner_user_id)",
+    "CREATE INDEX IF NOT EXISTS idx_workspaces_ak     ON workspaces(ak_chat_id)",
+    "CREATE INDEX IF NOT EXISTS idx_workspaces_ok     ON workspaces(ok_chat_id)",
+]
 
 _db: aiosqlite.Connection | None = None
 
@@ -90,8 +78,10 @@ async def get_db() -> aiosqlite.Connection:
     if _db is None:
         _db = await aiosqlite.connect(DATABASE_NAME)
         _db.row_factory = aiosqlite.Row
-        await _db.executescript(_MIGRATION_DDL)
-        await _db.executescript(_DDL)
+        await _db.execute("PRAGMA journal_mode=WAL")
+        await _db.execute("PRAGMA foreign_keys=ON")
+        for stmt in _DDL_STATEMENTS:
+            await _db.execute(stmt)
         await _db.commit()
         logger.info("Database opened: %s", DATABASE_NAME)
     return _db
