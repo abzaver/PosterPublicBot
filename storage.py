@@ -164,6 +164,15 @@ async def _try_activate_workspace(db: aiosqlite.Connection, workspace_id: int) -
         )
 
 
+async def detach_ok(workspace_id: int) -> None:
+    db = await get_db()
+    await db.execute(
+        "UPDATE workspaces SET ok_chat_id = NULL, status = 'pending' WHERE id = ?",
+        (workspace_id,),
+    )
+    await db.commit()
+
+
 async def deactivate_workspace(workspace_id: int) -> None:
     db = await get_db()
     await db.execute(

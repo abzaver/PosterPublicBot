@@ -97,85 +97,9 @@ async def set_ak(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         )
 
 
-async def set_ok(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    if update.effective_chat.type != "private":
-        await update.message.reply_text("Команду /set_ok нужно вызывать в личке с ботом.")
-        return
 
-    if not context.args:
-        await update.message.reply_text(
-            "Укажи username или chat_id канала:\n"
-            "/set_ok @my_channel\n"
-            "/set_ok -1001234567890"
-        )
-        return
-
-    user_id = update.effective_user.id
-    arg = context.args[0]
-
-    workspaces = await storage.get_workspace_by_owner(user_id)
-    pending = [w for w in workspaces if w["status"] == "pending"]
-
-    if not pending:
-        await update.message.reply_text(
-            "Нет незавершённой настройки. Напиши /new_workspace чтобы создать новый workspace."
-        )
-        return
-
-    ws = pending[0]
-
-    # Принимаем и @username, и числовой chat_id
-    try:
-        chat_ref = int(arg)
-    except ValueError:
-        chat_ref = f"@{arg.lstrip('@')}"
-
-    try:
-        chat = await context.bot.get_chat(chat_ref)
-        ok_chat_id = chat.id
-        ok_title = chat.title or str(ok_chat_id)
-    except Exception:
-        await update.message.reply_text(
-            f"Не могу найти канал {arg}.\n"
-            "Убедись что бот добавлен в канал и попробуй передать числовой chat_id."
-        )
-        return
-
-    bot_member = None
-    try:
-        bot_member = await context.bot.get_chat_member(ok_chat_id, context.bot.id)
-    except Exception:
-        pass
-
-    await storage.set_workspace_ok(ws["id"], ok_chat_id=ok_chat_id)
-
-    # Перечитываем workspace чтобы узнать реальный статус после попытки активации
-    updated_workspaces = await storage.get_workspace_by_owner(user_id)
-    updated_ws = next((w for w in updated_workspaces if w["id"] == ws["id"]), None)
-    is_active = updated_ws and updated_ws["status"] == "active"
-
-    has_rights = bot_member and bot_member.status in ("administrator", "creator")
-
-    if not has_rights:
-        await update.message.reply_html(
-            f"✅ ОК <b>{ok_title}</b> сохранён, но <b>бот не является администратором канала</b>.\n"
-            "Добавь бота как администратора, иначе публикация не заработает."
-        )
-    elif is_active:
-        await update.message.reply_html(
-            f"✅ Workspace активен!\n\n"
-            f"АК и ОК <b>{ok_title}</b> подключены. Бот готов к работе.\n"
-            "Напиши /config чтобы посмотреть настройки."
-        )
-    else:
-        await update.message.reply_html(
-            f"✅ ОК <b>{ok_title}</b> сохранён.\n\n"
-            "Ещё нужно привязать АК — добавь бота в свою админскую группу и напиши там <code>/set_ak</code>"
-        )
-
-
-async def on_bot_added_to_channel(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Срабатывает когда бота добавляют/убирают из канала."""
+async def on_bot_channel_status_changed(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Срабатывает когда бота добавляют или удаляют из канала."""
     result = update.my_chat_member
     if not result:
         return
@@ -184,27 +108,46 @@ async def on_bot_added_to_channel(update: Update, context: ContextTypes.DEFAULT_
     if chat.type != "channel":
         return
 
+    changed_by = result.from_user
+    if not changed_by:
+        return
+
     new_status = result.new_chat_member.status
+    old_status = result.old_chat_member.status
+
+    # Бота удалили или понизили из администраторов
+    if old_status in ("administrator", "creator") and new_status not in ("administrator", "creator"):
+        ws = await storage.get_workspace_by_ok(chat.id)
+        if ws:
+            await storage.detach_ok(ws["id"])
+            try:
+                await context.bot.send_message(
+                    chat_id=ws["owner_user_id"],
+                    text=(
+                        f"⚠️ Я удалён из канала <b>{chat.title}</b> или потерял права администратора.\n"
+                        "ОК отвязан, workspace переведён в статус ожидания.\n"
+                        "Добавь меня обратно как администратора для восстановления работы."
+                    ),
+                    parse_mode="HTML",
+                )
+            except Exception:
+                pass
+        return
+
+    # Бота добавили как администратора
     if new_status not in ("administrator", "creator"):
         return
 
-    # Бота добавили в канал как администратора — сообщаем добавившему
-    added_by = result.from_user
-    if not added_by:
-        return
-
-    workspaces = await storage.get_workspace_by_owner(added_by.id)
+    workspaces = await storage.get_workspace_by_owner(changed_by.id)
     pending = [w for w in workspaces if w["status"] == "pending" and w["ak_chat_id"]]
 
     if not pending:
-        # Нет pending workspace с АК — просто подсказываем
         try:
             await context.bot.send_message(
-                chat_id=added_by.id,
+                chat_id=changed_by.id,
                 text=(
-                    f"Я добавлен в канал <b>{chat.title}</b> (id: <code>{chat.id}</code>).\n"
-                    "Чтобы привязать его как ОК, напиши:\n"
-                    f"<code>/set_ok {chat.id}</code>"
+                    f"Я добавлен в канал <b>{chat.title}</b>.\n"
+                    "Сначала привяжи АК — добавь меня в свою админскую группу и напиши там <code>/set_ak</code>"
                 ),
                 parse_mode="HTML",
             )
@@ -215,14 +158,14 @@ async def on_bot_added_to_channel(update: Update, context: ContextTypes.DEFAULT_
     ws = pending[0]
     await storage.set_workspace_ok(ws["id"], ok_chat_id=chat.id)
 
-    updated = await storage.get_workspace_by_owner(added_by.id)
+    updated = await storage.get_workspace_by_owner(changed_by.id)
     updated_ws = next((w for w in updated if w["id"] == ws["id"]), None)
     is_active = updated_ws and updated_ws["status"] == "active"
 
     try:
         if is_active:
             await context.bot.send_message(
-                chat_id=added_by.id,
+                chat_id=changed_by.id,
                 text=(
                     f"✅ Workspace активен!\n\n"
                     f"ОК <b>{chat.title}</b> автоматически привязан. Бот готов к работе.\n"
@@ -232,7 +175,7 @@ async def on_bot_added_to_channel(update: Update, context: ContextTypes.DEFAULT_
             )
         else:
             await context.bot.send_message(
-                chat_id=added_by.id,
+                chat_id=changed_by.id,
                 text=(
                     f"✅ ОК <b>{chat.title}</b> сохранён.\n\n"
                     "Ещё нужно привязать АК — добавь бота в свою админскую группу и напиши там <code>/set_ak</code>"
@@ -279,7 +222,6 @@ async def show_config(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
 def register(application) -> None:
     application.add_handler(CommandHandler("start", start, filters=filters.ChatType.PRIVATE))
     application.add_handler(CommandHandler("new_workspace", new_workspace, filters=filters.ChatType.PRIVATE))
-    application.add_handler(CommandHandler("set_ok", set_ok, filters=filters.ChatType.PRIVATE))
     application.add_handler(CommandHandler("set_ak", set_ak, filters=filters.ChatType.GROUPS))
     application.add_handler(CommandHandler("config", show_config))
-    application.add_handler(ChatMemberHandler(on_bot_added_to_channel, ChatMemberHandler.MY_CHAT_MEMBER))
+    application.add_handler(ChatMemberHandler(on_bot_channel_status_changed, ChatMemberHandler.MY_CHAT_MEMBER))
