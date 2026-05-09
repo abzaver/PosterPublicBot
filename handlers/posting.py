@@ -7,6 +7,7 @@ from telegram.ext import ContextTypes, MessageHandler, CommandHandler, filters
 
 import storage
 import image_hash
+from handlers.bayan import check_bayan
 
 logger = logging.getLogger(__name__)
 
@@ -96,6 +97,8 @@ async def handle_media(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
         phash=phash,
         msg_id=sent.message_id,
     )
+
+    await check_bayan(update, context, ws["id"], sent.message_id, chat_id, phash)
 
     logger.info("АК пост #%s сохранён (workspace %s, phash %s)", post_id, ws["id"], phash)
 

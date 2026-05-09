@@ -187,6 +187,51 @@ async def on_bot_channel_status_changed(update: Update, context: ContextTypes.DE
         pass
 
 
+async def my_workspaces(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    if update.effective_chat.type != "private":
+        return
+
+    user_id = update.effective_user.id
+    workspaces = await storage.get_workspace_by_owner(user_id)
+
+    if not workspaces:
+        await update.message.reply_text("У тебя нет workspace. Напиши /start чтобы создать.")
+        return
+
+    lines = ["<b>Твои workspace:</b>"]
+    for w in workspaces:
+        status_label = {"active": "активен", "pending": "ожидает настройки", "inactive": "неактивен"}.get(w["status"], w["status"])
+        lines.append(f"• <b>#{w['id']}</b> — {status_label}")
+        if w["ak_chat_id"]:
+            lines.append(f"  АК: <code>{w['ak_chat_id']}</code>")
+        if w["ok_chat_id"]:
+            lines.append(f"  ОК: <code>{w['ok_chat_id']}</code>")
+
+    lines.append("")
+    lines.append("Удалить: <code>/delete_workspace &lt;id&gt;</code>")
+    await update.message.reply_html("\n".join(lines))
+
+
+async def delete_workspace_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    if update.effective_chat.type != "private":
+        return
+
+    if not context.args or not context.args[0].isdigit():
+        await update.message.reply_text("Использование: /delete_workspace <id>")
+        return
+
+    workspace_id = int(context.args[0])
+    user_id = update.effective_user.id
+
+    deleted = await storage.delete_workspace(workspace_id, user_id)
+    if deleted:
+        await update.message.reply_html(f"✅ Workspace <b>#{workspace_id}</b> удалён.")
+    else:
+        await update.message.reply_text(
+            f"Workspace #{workspace_id} не найден или не принадлежит тебе."
+        )
+
+
 async def show_config(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     chat_type = update.effective_chat.type
 
@@ -223,6 +268,8 @@ async def show_config(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
 def register(application) -> None:
     application.add_handler(CommandHandler("start", start, filters=filters.ChatType.PRIVATE))
     application.add_handler(CommandHandler("new_workspace", new_workspace, filters=filters.ChatType.PRIVATE))
+    application.add_handler(CommandHandler("my_workspaces", my_workspaces, filters=filters.ChatType.PRIVATE))
+    application.add_handler(CommandHandler("delete_workspace", delete_workspace_cmd, filters=filters.ChatType.PRIVATE))
     application.add_handler(CommandHandler("set_ak", set_ak, filters=filters.ChatType.GROUPS))
     application.add_handler(CommandHandler("config", show_config))
     application.add_handler(ChatMemberHandler(on_bot_channel_status_changed, ChatMemberHandler.MY_CHAT_MEMBER))

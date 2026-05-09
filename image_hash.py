@@ -34,29 +34,41 @@ def _phash_sync(path: str) -> str:
 
 def _animation_phash_sync(in_path: str) -> str:
     probe = ffmpeg.probe(in_path)
-    frames = 0
+    total_frames = 0
     for stream in probe["streams"]:
         if stream["codec_type"] == "video":
-            frames = int(stream["nb_frames"]) // ANIMATION_FRAMES
+            try:
+                total_frames = int(stream["nb_frames"])
+            except (KeyError, ValueError):
+                total_frames = 0
             break
 
     with tempfile.NamedTemporaryFile(delete=False, suffix=".png") as f:
         tile_path = f.name
 
     try:
-        frame_select = "+".join(
-            f"eq(n,{frames * i})" for i in range(ANIMATION_FRAMES)
-        )
-        (
-            ffmpeg
-            .input(in_path)
-            .filter("scale", 640, -1)
-            .filter("select", frame_select)
-            .filter("tile", ANIMATION_TILE_SIZE)
-            .output(tile_path, vframes=1, vsync=0)
-            .overwrite_output()
-            .run(capture_stdout=True, capture_stderr=True)
-        )
+        step = total_frames // ANIMATION_FRAMES if total_frames >= ANIMATION_FRAMES else 0
+        if step > 0:
+            frame_select = "+".join(f"eq(n,{step * i})" for i in range(ANIMATION_FRAMES))
+            (
+                ffmpeg
+                .input(in_path)
+                .filter("scale", 640, -1)
+                .filter("select", frame_select)
+                .filter("tile", ANIMATION_TILE_SIZE)
+                .output(tile_path, vframes=1, vsync=0)
+                .overwrite_output()
+                .run(capture_stdout=True, capture_stderr=True)
+            )
+        else:
+            # Видео слишком короткое или nb_frames недоступен — берём первый кадр
+            (
+                ffmpeg
+                .input(in_path)
+                .output(tile_path, vframes=1)
+                .overwrite_output()
+                .run(capture_stdout=True, capture_stderr=True)
+            )
         return str(imagehash.phash(Image.open(tile_path)))
     finally:
         Path(tile_path).unlink(missing_ok=True)

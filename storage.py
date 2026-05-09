@@ -181,6 +181,21 @@ async def deactivate_workspace(workspace_id: int) -> None:
     await db.commit()
 
 
+async def delete_workspace(workspace_id: int, owner_user_id: int) -> bool:
+    """Удаляет workspace. Возвращает True если удалил, False если не нашёл или не владелец."""
+    db = await get_db()
+    async with db.execute(
+        "SELECT id FROM workspaces WHERE id = ? AND owner_user_id = ?",
+        (workspace_id, owner_user_id),
+    ) as cur:
+        row = await cur.fetchone()
+    if not row:
+        return False
+    await db.execute("DELETE FROM workspaces WHERE id = ?", (workspace_id,))
+    await db.commit()
+    return True
+
+
 # ---------------------------------------------------------------------------
 # Workspace config
 # ---------------------------------------------------------------------------
