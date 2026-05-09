@@ -7,6 +7,7 @@ from telegram.ext import Application
 
 import storage
 import handlers.onboarding as onboarding
+import handlers.posting as posting
 
 logging.basicConfig(
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s", level=logging.INFO
@@ -36,6 +37,7 @@ def main() -> None:
     )
 
     onboarding.register(application)
+    posting.register(application)
 
     application.run_polling(allowed_updates=Update.ALL_TYPES)
 
