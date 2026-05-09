@@ -4,6 +4,8 @@
 #
 #    pip-compile requirements.in
 #
+aiosqlite==0.22.1
+    # via -r requirements.in
 anyio==4.13.0
     # via httpx
 certifi==2026.4.22
