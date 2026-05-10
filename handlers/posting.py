@@ -2,12 +2,14 @@ import logging
 import tempfile
 from pathlib import Path
 
-from telegram import Update, Message
+from telegram import Update, Message, ReactionTypeEmoji
+from telegram.constants import ChatAction
 from telegram.ext import ContextTypes, MessageHandler, CommandHandler, filters
 
 import storage
 import image_hash
 from handlers.bayan import check_bayan
+from handlers.voting import build_caption, build_caption_short, _sender_name
 
 logger = logging.getLogger(__name__)
 
@@ -32,7 +34,9 @@ async def handle_media(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
         return
 
     sender_id = update.effective_user.id if update.effective_user else None
-    caption = message.caption or ""
+    original_caption = message.caption or ""
+    sender_name = _sender_name(update.effective_user) if update.effective_user else "аноним"
+    caption = build_caption_short(original_caption, sender_name)
 
     # Определяем тип медиа и скачиваем
     if message.photo:
@@ -48,6 +52,9 @@ async def handle_media(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
         return
 
     await _delete_original(message)
+
+    action = ChatAction.UPLOAD_PHOTO if media_type == "photo" else ChatAction.UPLOAD_VIDEO
+    await context.bot.send_chat_action(chat_id=chat_id, action=action)
 
     # Скачиваем во временный файл для хэширования
     suffix = ".jpg" if media_type == "photo" else ".mp4"
@@ -90,6 +97,8 @@ async def handle_media(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
         chat_id=chat_id,
         sender_user_id=sender_id,
         media_type=media_type,
+        caption=original_caption,
+        sender_name=sender_name,
     )
     await storage.add_image(
         workspace_id=ws["id"],
@@ -98,7 +107,34 @@ async def handle_media(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
         msg_id=sent.message_id,
     )
 
-    await check_bayan(update, context, ws["id"], sent.message_id, chat_id, phash)
+    is_bayan = await check_bayan(update, context, ws["id"], sent.message_id, chat_id, phash)
+
+    if not is_bayan:
+        positive_r = await storage.get_config(ws["id"], "positive_reactions")
+        negative_r = await storage.get_config(ws["id"], "negative_reactions")
+        full_caption = build_caption(original_caption, sender_name, positive_r, negative_r)
+        try:
+            await context.bot.edit_message_caption(
+                chat_id=chat_id,
+                message_id=sent.message_id,
+                caption=full_caption,
+            )
+        except Exception as e:
+            logger.warning("Не удалось обновить caption: %s", e)
+        try:
+            await context.bot.set_message_reaction(
+                chat_id=chat_id,
+                message_id=sent.message_id,
+                reaction=[ReactionTypeEmoji(emoji="👍")],
+            )
+            await storage.upsert_vote(
+                workspace_id=ws["id"],
+                post_id=post_id,
+                user_id=context.bot.id,
+                reaction="👍",
+            )
+        except Exception as e:
+            logger.warning("Не удалось поставить реакцию: %s", e)
 
     logger.info("АК пост #%s сохранён (workspace %s, phash %s)", post_id, ws["id"], phash)
 

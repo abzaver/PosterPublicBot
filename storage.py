@@ -40,8 +40,11 @@ _DDL_STATEMENTS = [
         chat_id          INTEGER NOT NULL,
         sender_user_id   INTEGER,
         media_type       TEXT    NOT NULL,
+        caption          TEXT    NOT NULL DEFAULT '',
+        sender_name      TEXT    NOT NULL DEFAULT '',
         status           TEXT    NOT NULL DEFAULT 'pending',
         published_msg_id INTEGER,
+        published_at     INTEGER,
         created_at       INTEGER NOT NULL DEFAULT (unixepoch())
     )""",
     """CREATE TABLE IF NOT EXISTS votes (
@@ -202,12 +205,12 @@ async def delete_workspace(workspace_id: int, owner_user_id: int) -> bool:
 
 DEFAULTS: dict[str, str] = {
     "hash_threshold":    "10",
-    "vote_threshold":    "3",
+    "vote_threshold":    "2",
     "autopublish":       "off",
     "on_bayan_action":   "warn",
     "gotcha":            "off",
     "gotcha_template":   "{user}, чо поменял {old} на {new}? 👀",
-    "positive_reactions": "👍 ❤️ 🔥",
+    "positive_reactions": "👍 ❤️ ❤ 🔥",
     "negative_reactions": "👎 💩",
     "text_threshold":    "80",
     "text_min_len":      "20",
@@ -269,6 +272,21 @@ async def search_images_by_hash(workspace_id: int, phash: str, threshold: int) -
         return await cur.fetchall()
 
 
+async def get_image_by_msg(workspace_id: int, chat_id: int, msg_id: int) -> aiosqlite.Row | None:
+    db = await get_db()
+    async with db.execute(
+        "SELECT * FROM images WHERE workspace_id = ? AND chat_id = ? AND msg_id = ? LIMIT 1",
+        (workspace_id, chat_id, msg_id),
+    ) as cur:
+        return await cur.fetchone()
+
+
+async def delete_image(image_id: int) -> None:
+    db = await get_db()
+    await db.execute("DELETE FROM images WHERE id = ?", (image_id,))
+    await db.commit()
+
+
 async def image_exists(workspace_id: int, chat_id: int, msg_id: int) -> bool:
     db = await get_db()
     async with db.execute(
@@ -283,12 +301,13 @@ async def image_exists(workspace_id: int, chat_id: int, msg_id: int) -> bool:
 # ---------------------------------------------------------------------------
 
 async def add_post(workspace_id: int, bot_msg_id: int, chat_id: int,
-                   sender_user_id: int | None, media_type: str) -> int:
+                   sender_user_id: int | None, media_type: str,
+                   caption: str = "", sender_name: str = "") -> int:
     db = await get_db()
     async with db.execute(
-        "INSERT INTO posts (workspace_id, bot_msg_id, chat_id, sender_user_id, media_type)"
-        " VALUES (?, ?, ?, ?, ?)",
-        (workspace_id, bot_msg_id, chat_id, sender_user_id, media_type),
+        "INSERT INTO posts (workspace_id, bot_msg_id, chat_id, sender_user_id, media_type, caption, sender_name)"
+        " VALUES (?, ?, ?, ?, ?, ?, ?)",
+        (workspace_id, bot_msg_id, chat_id, sender_user_id, media_type, caption, sender_name),
     ) as cur:
         post_id = cur.lastrowid
     await db.commit()
@@ -304,13 +323,17 @@ async def get_post_by_msg(workspace_id: int, bot_msg_id: int) -> aiosqlite.Row |
         return await cur.fetchone()
 
 
-async def mark_post_published(post_id: int, published_msg_id: int) -> None:
+async def mark_post_published(post_id: int, published_msg_id: int) -> bool:
+    """Атомарно помечает пост опубликованным. Возвращает True если успешно, False если уже опубликован."""
     db = await get_db()
-    await db.execute(
-        "UPDATE posts SET status = 'published', published_msg_id = ? WHERE id = ?",
+    async with db.execute(
+        "UPDATE posts SET status = 'published', published_msg_id = ?, published_at = unixepoch()"
+        " WHERE id = ? AND status = 'pending'",
         (published_msg_id, post_id),
-    )
+    ) as cur:
+        updated = cur.rowcount
     await db.commit()
+    return updated > 0
 
 
 # ---------------------------------------------------------------------------
